@@ -2,10 +2,12 @@ package com.example.excelexport.service;
 
 import com.example.excelexport.entity.Employee;
 import com.example.excelexport.repository.EmployeeRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dhatim.fastexcel.Workbook;
 import org.dhatim.fastexcel.Worksheet;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -22,12 +25,13 @@ import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FastExcelExportService {
 
     private static final int CHUNK_SIZE = 1000;
 
-    @Autowired
-    private EmployeeRepository employeeRepository;
+    private final EmployeeRepository employeeRepository;
+    private final MessageSource messageSource;
 
     @Transactional(readOnly = true)
     public byte[] exportEmployeesToExcelZip() throws IOException {
@@ -36,7 +40,13 @@ public class FastExcelExportService {
             
             // Generate timestamp for filename
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String excelFilename = "employees_fastexcel_" + timestamp + ".xlsx";
+            String baseFilename = messageSource.getMessage(
+                "excel.filename.users",
+                null,
+                "employees_fastexcel",
+                LocaleContextHolder.getLocale()
+            );
+            String excelFilename = baseFilename + "_" + timestamp + ".xlsx";
             
             // Create ZIP entry
             ZipEntry zipEntry = new ZipEntry(excelFilename);
@@ -54,11 +64,28 @@ public class FastExcelExportService {
     }
 
     private byte[] generateExcelContent() throws IOException {
-        List<String> headers = Arrays.asList("ID", "First Name", "Last Name", "Email", "Department", "Salary");
+        Locale currentLocale = LocaleContextHolder.getLocale();
+        
+        // Get localized headers
+        List<String> headers = Arrays.asList(
+            messageSource.getMessage("excel.header.userId", null, "ID", currentLocale),
+            messageSource.getMessage("excel.header.firstName", null, "First Name", currentLocale),
+            messageSource.getMessage("excel.header.lastName", null, "Last Name", currentLocale),
+            messageSource.getMessage("excel.header.email", null, "Email", currentLocale),
+            messageSource.getMessage("excel.header.department", null, "Department", currentLocale),
+            messageSource.getMessage("excel.header.salary", null, "Salary", currentLocale)
+        );
         
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            Workbook workbook = new Workbook(outputStream, "Employees", "1.0");
-            Worksheet worksheet = workbook.newWorksheet("Employees");
+            String sheetName = messageSource.getMessage(
+                "excel.sheet.users",
+                null,
+                "Employees",
+                currentLocale
+            );
+            
+            Workbook workbook = new Workbook(outputStream, sheetName, "1.0");
+            Worksheet worksheet = workbook.newWorksheet(sheetName);
 
             // Write headers
             for (int i = 0; i < headers.size(); i++) {
